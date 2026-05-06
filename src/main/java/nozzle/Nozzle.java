@@ -35,6 +35,10 @@ public final class Nozzle {
     }
 
     public static boolean isGpuAvailable() {
+        // On CI there is no GPU — avoid native crash (SIGSEGV in Metal init)
+        if (System.getenv("CI") != null || System.getenv("GITHUB_ACTIONS") != null) {
+            return false;
+        }
         try (Sender s = Sender.create(new SenderDesc("nozzle-java-gpu-check", "nozzle-java", 1, false))) {
             return true;
         } catch (NozzleException e) {
