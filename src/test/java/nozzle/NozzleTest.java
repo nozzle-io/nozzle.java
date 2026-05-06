@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 class NozzleTest {
 
@@ -246,8 +247,8 @@ class NozzleTest {
 
     @Test
     void widenUint16ToUint32Basic() {
-        ByteBuffer src = ByteBuffer.allocateDirect(2);
-        ByteBuffer dst = ByteBuffer.allocateDirect(4);
+        ByteBuffer src = ByteBuffer.allocateDirect(2).order(ByteOrder.nativeOrder());
+        ByteBuffer dst = ByteBuffer.allocateDirect(4).order(ByteOrder.nativeOrder());
         src.putShort((short)0x1234);
         src.rewind();
         Nozzle.widenUint16ToUint32(src, dst, 1, 1, 2, 4, 1);
@@ -257,8 +258,8 @@ class NozzleTest {
 
     @Test
     void convertUint32ToFloat32Basic() {
-        ByteBuffer src = ByteBuffer.allocateDirect(4);
-        ByteBuffer dst = ByteBuffer.allocateDirect(4);
+        ByteBuffer src = ByteBuffer.allocateDirect(4).order(ByteOrder.nativeOrder());
+        ByteBuffer dst = ByteBuffer.allocateDirect(4).order(ByteOrder.nativeOrder());
         src.putInt(42);
         src.rewind();
         Nozzle.convertUint32ToFloat32(src, dst, 1, 1, 4, 4, 1);
