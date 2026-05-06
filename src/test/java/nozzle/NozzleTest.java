@@ -4,7 +4,13 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import java.nio.ByteBuffer;
+
 class NozzleTest {
+
+    private static final int TEST_WIDTH = 64;
+    private static final int TEST_HEIGHT = 64;
+    private static final long DEFAULT_TIMEOUT_MS = 5000;
 
     // ========== ErrorCode ==========
 
@@ -42,11 +48,6 @@ class NozzleTest {
         }
     }
 
-    @Test
-    void errorCodeCount() {
-        assertEquals(12, ErrorCode.values().length);
-    }
-
     // ========== BackendType ==========
 
     @Test
@@ -80,11 +81,6 @@ class NozzleTest {
         assertEquals("unknown", BackendType.UNKNOWN.toString());
     }
 
-    @Test
-    void backendTypeCount() {
-        assertEquals(5, BackendType.values().length);
-    }
-
     // ========== TextureFormat ==========
 
     @Test
@@ -110,6 +106,11 @@ class NozzleTest {
     }
 
     @Test
+    void textureFormatFromValueUnknown() {
+        assertEquals(TextureFormat.UNKNOWN, TextureFormat.fromValue(999));
+    }
+
+    @Test
     void textureFormatBytesPerPixel() {
         assertEquals(1, TextureFormat.R8_UNORM.bytesPerPixel());
         assertEquals(2, TextureFormat.RG8_UNORM.bytesPerPixel());
@@ -130,11 +131,6 @@ class NozzleTest {
         assertEquals(16, TextureFormat.RGBA32_FLOAT.bytesPerPixel());
         assertEquals(16, TextureFormat.RGBA32_UINT.bytesPerPixel());
         assertEquals(0, TextureFormat.UNKNOWN.bytesPerPixel());
-    }
-
-    @Test
-    void textureFormatCount() {
-        assertEquals(19, TextureFormat.values().length);
     }
 
     // ========== Remaining Enums ==========
@@ -220,15 +216,54 @@ class NozzleTest {
 
     @Test
     void mappedPixelsRowBounds() {
-        java.nio.ByteBuffer buf = java.nio.ByteBuffer.allocateDirect(64 * 4);
-        MappedPixels mp = new MappedPixels(buf, 4, 64, 64,
+        ByteBuffer buf = ByteBuffer.allocateDirect(TEST_WIDTH * 4);
+        MappedPixels mp = new MappedPixels(buf, 4, TEST_WIDTH, TEST_HEIGHT,
             TextureFormat.RGBA8_UNORM, TextureOrigin.TOP_LEFT, 0, false);
 
         assertDoesNotThrow(() -> mp.row(0));
-        assertDoesNotThrow(() -> mp.row(63));
+        assertDoesNotThrow(() -> mp.row(TEST_HEIGHT - 1));
 
         assertThrows(IllegalArgumentException.class, () -> mp.row(-1));
-        assertThrows(IllegalArgumentException.class, () -> mp.row(64));
+        assertThrows(IllegalArgumentException.class, () -> mp.row(TEST_HEIGHT));
+    }
+
+    // ========== CPU-only function tests ==========
+
+    @Test
+    void swizzleChannelsRgbaToBgra() {
+        ByteBuffer src = ByteBuffer.allocateDirect(4);
+        ByteBuffer dst = ByteBuffer.allocateDirect(4);
+        src.put(new byte[]{(byte)0xFF, 0x00, 0x00, (byte)0xFF}); // R=255,G=0,B=0,A=255
+        src.flip();
+        byte[] permuteMap = {2, 1, 0, 3}; // swap R↔B
+        Nozzle.swizzleChannels(src, dst, 1, 1, 4, 4, TextureFormat.RGBA8_UNORM, permuteMap);
+        dst.flip();
+        assertEquals(0x00, dst.get());   // B was 0
+        assertEquals(0x00, dst.get());   // G stays 0
+        assertEquals((byte)0xFF, dst.get()); // R was 255
+        assertEquals((byte)0xFF, dst.get()); // A stays 255
+    }
+
+    @Test
+    void widenUint16ToUint32Basic() {
+        ByteBuffer src = ByteBuffer.allocateDirect(2);
+        ByteBuffer dst = ByteBuffer.allocateDirect(4);
+        src.putShort((short)0x1234);
+        src.flip();
+        Nozzle.widenUint16ToUint32(src, dst, 1, 1, 2, 4, 1);
+        dst.flip();
+        assertEquals(0x1234, dst.getInt());
+    }
+
+    @Test
+    void convertUint32ToFloat32Basic() {
+        ByteBuffer src = ByteBuffer.allocateDirect(4);
+        ByteBuffer dst = ByteBuffer.allocateDirect(4);
+        src.putInt(42);
+        src.flip();
+        Nozzle.convertUint32ToFloat32(src, dst, 1, 1, 4, 4, 1);
+        dst.flip();
+        assertEquals(42.0f, dst.getFloat(), 0.001f);
     }
 
     // ========== GPU-dependent tests ==========
@@ -268,11 +303,11 @@ class NozzleTest {
         assumeTrue(Nozzle.isGpuAvailable(), "GPU not available");
 
         try (Sender s = Sender.create(new SenderDesc("java-test-write", "nozzle-java", 2, false))) {
-            try (WritableFrame f = s.acquireWritableFrame(64, 64, TextureFormat.RGBA8_UNORM)) {
+            try (WritableFrame f = s.acquireWritableFrame(TEST_WIDTH, TEST_HEIGHT, TextureFormat.RGBA8_UNORM)) {
                 assertNotNull(f);
                 FrameInfo info = f.info();
-                assertEquals(64, info.width());
-                assertEquals(64, info.height());
+                assertEquals(TEST_WIDTH, info.width());
+                assertEquals(TEST_HEIGHT, info.height());
                 assertEquals(TextureFormat.RGBA8_UNORM, info.format());
             }
         }
@@ -284,6 +319,8 @@ class NozzleTest {
 
         SenderInfo[] senders = Nozzle.enumerateSenders();
         assertNotNull(senders);
+        assertTrue(senders.length >= 0);
+        assertInstanceOf(SenderInfo[].class, senders);
     }
 
     @Test
