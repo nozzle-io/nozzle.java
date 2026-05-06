@@ -24,7 +24,13 @@ test {
     useJUnitPlatform()
     testLogging {
         events 'passed', 'skipped', 'failed'
-        showSummary true
+    }
+    afterSuite { desc, result ->
+        if (!desc.parent) {
+            logger.lifecycle("\nTest summary: ${result.resultType} " +
+                "(${result.testCount} tests, ${result.successfulTestCount} passed, " +
+                "${result.failedTestCount} failed, ${result.skippedTestCount} skipped)")
+        }
     }
 }
 
