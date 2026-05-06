@@ -1,0 +1,15 @@
+.build/
+*.o
+*.a
+*.class
+.gradle/
+build/
+bin/
+*.jnilib
+*.so
+*.dll
+*.dylib
+.idea/
+*.iml
+.DS_Store
+*.log
