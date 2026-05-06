@@ -234,10 +234,10 @@ class NozzleTest {
         ByteBuffer src = ByteBuffer.allocateDirect(4);
         ByteBuffer dst = ByteBuffer.allocateDirect(4);
         src.put(new byte[]{(byte)0xFF, 0x00, 0x00, (byte)0xFF}); // R=255,G=0,B=0,A=255
-        src.flip();
+        src.rewind();
         byte[] permuteMap = {2, 1, 0, 3}; // swap R↔B
         Nozzle.swizzleChannels(src, dst, 1, 1, 4, 4, TextureFormat.RGBA8_UNORM, permuteMap);
-        dst.flip();
+        dst.rewind();
         assertEquals(0x00, dst.get());   // B was 0
         assertEquals(0x00, dst.get());   // G stays 0
         assertEquals((byte)0xFF, dst.get()); // R was 255
@@ -249,9 +249,9 @@ class NozzleTest {
         ByteBuffer src = ByteBuffer.allocateDirect(2);
         ByteBuffer dst = ByteBuffer.allocateDirect(4);
         src.putShort((short)0x1234);
-        src.flip();
+        src.rewind();
         Nozzle.widenUint16ToUint32(src, dst, 1, 1, 2, 4, 1);
-        dst.flip();
+        dst.rewind();
         assertEquals(0x1234, dst.getInt());
     }
 
@@ -260,9 +260,9 @@ class NozzleTest {
         ByteBuffer src = ByteBuffer.allocateDirect(4);
         ByteBuffer dst = ByteBuffer.allocateDirect(4);
         src.putInt(42);
-        src.flip();
+        src.rewind();
         Nozzle.convertUint32ToFloat32(src, dst, 1, 1, 4, 4, 1);
-        dst.flip();
+        dst.rewind();
         assertEquals(42.0f, dst.getFloat(), 0.001f);
     }
 
