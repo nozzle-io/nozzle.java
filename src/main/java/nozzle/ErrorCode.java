@@ -12,7 +12,8 @@ public enum ErrorCode {
     SENDER_NOT_FOUND(8),
     SENDER_CLOSED(9),
     TIMEOUT(10),
-    BACKEND_ERROR(11);
+    BACKEND_ERROR(11),
+    COMMAND_FAILED(12);
 
     private final int value;
 
@@ -47,6 +48,7 @@ public enum ErrorCode {
             case SENDER_CLOSED: return "sender closed";
             case TIMEOUT: return "timeout";
             case BACKEND_ERROR: return "backend error";
+            case COMMAND_FAILED: return "command execution failed";
             default: return "nozzle error (" + value + ")";
         }
     }

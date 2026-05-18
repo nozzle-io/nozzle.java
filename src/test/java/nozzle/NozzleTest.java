@@ -38,6 +38,7 @@ class NozzleTest {
         assertEquals(ErrorCode.INVALID_ARGUMENT, ErrorCode.fromValue(2));
         assertEquals(ErrorCode.TIMEOUT, ErrorCode.fromValue(10));
         assertEquals(ErrorCode.BACKEND_ERROR, ErrorCode.fromValue(11));
+        assertEquals(ErrorCode.COMMAND_FAILED, ErrorCode.fromValue(12));
         assertEquals(ErrorCode.UNKNOWN, ErrorCode.fromValue(999));
     }
 
