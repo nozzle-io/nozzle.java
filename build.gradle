@@ -1,3 +1,5 @@
+import groovy.json.JsonSlurper
+
 plugins {
     id 'java-library'
 }
@@ -22,6 +24,17 @@ dependencies {
 
 test {
     useJUnitPlatform()
+    def enumManifest = layout.projectDirectory.file('deps/nozzle/tools/enum_manifest.json')
+    inputs.file(enumManifest)
+    doFirst {
+        def manifest = new JsonSlurper().parse(enumManifest.asFile)
+        manifest.each { family, members ->
+            members.each { cName, value ->
+                assert value instanceof Integer : "${family}.${cName} must be an integer"
+                systemProperty "nozzle.enum.${family}.${cName}", value.toString()
+            }
+        }
+    }
     testLogging {
         events 'passed', 'skipped', 'failed'
     }
