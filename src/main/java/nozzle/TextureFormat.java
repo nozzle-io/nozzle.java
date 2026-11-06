@@ -51,7 +51,7 @@ public enum TextureFormat {
             case RG8_UNORM:
             case R16_UNORM:
             case R16_FLOAT: return 2;
-            case RGB8_UNORM:
+            case RGB8_UNORM: return 3;
             case RGBA8_UNORM:
             case BGRA8_UNORM:
             case RGBA8_SRGB:
@@ -62,12 +62,13 @@ public enum TextureFormat {
             case R32_UINT:
             case DEPTH32_FLOAT: return 4;
             case RGB16_UNORM:
+            case RGB16_FLOAT: return 6;
             case RGBA16_UNORM:
             case RGBA16_FLOAT:
             case RG32_FLOAT: return 8;
-            case RGB32_FLOAT:
             case RGBA32_FLOAT:
             case RGBA32_UINT: return 16;
+            case RGB32_FLOAT:
             case RGB32_UINT: return 12;
             default: return 0;
         }
