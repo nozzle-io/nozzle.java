@@ -15,6 +15,38 @@ final class NozzleNative {
 
     private NozzleNative() {}
 
+    // JNI's UTF chars use modified UTF-8. Core names use strict standard UTF-8.
+    private static byte[] encodeUtf8(String text) throws java.nio.charset.CharacterCodingException {
+        if (text == null) text = "";
+        if (text.indexOf('\0') >= 0) throw new IllegalArgumentException("embedded NUL in name");
+        java.nio.ByteBuffer bytes = java.nio.charset.StandardCharsets.UTF_8.newEncoder()
+            .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+            .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+            .encode(java.nio.CharBuffer.wrap(text));
+        byte[] result = new byte[bytes.remaining()];
+        bytes.get(result);
+        return result;
+    }
+
+    private static String decodeUtf8(byte[] bytes) throws java.nio.charset.CharacterCodingException {
+        return java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+            .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+            .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+            .decode(java.nio.ByteBuffer.wrap(bytes)).toString();
+    }
+
+    private static SenderInfo senderInfo(byte[] name, byte[] app, byte[] id, int backend)
+            throws java.nio.charset.CharacterCodingException {
+        return new SenderInfo(decodeUtf8(name), decodeUtf8(app), decodeUtf8(id), BackendType.fromValue(backend));
+    }
+
+    private static ConnectedSenderInfo connectedInfo(byte[] name, byte[] app, byte[] id,
+            int backend, int width, int height, int format, double fps, long frame, long time)
+            throws java.nio.charset.CharacterCodingException {
+        return new ConnectedSenderInfo(decodeUtf8(name), decodeUtf8(app), decodeUtf8(id),
+            BackendType.fromValue(backend), width, height, TextureFormat.fromValue(format), fps, frame, time);
+    }
+
     // --- sender ---
 
     static native long senderCreate(String name, String applicationName,
