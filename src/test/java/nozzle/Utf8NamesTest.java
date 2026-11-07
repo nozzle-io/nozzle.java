@@ -10,21 +10,27 @@ class Utf8NamesTest {
     private static final String SUPPLEMENTARY = "\uD83D\uDE80";
     private static final String APPLICATION = "\u65E5\u672C-app-" + SUPPLEMENTARY;
 
+    private static void assertInvalidArgument(String message, org.junit.jupiter.api.function.Executable operation) {
+        NozzleException error = assertThrowsExactly(NozzleException.class, operation);
+        assertEquals(ErrorCode.INVALID_ARGUMENT, error.errorCode());
+        assertEquals(message, error.getMessage());
+    }
+
     @Test
     void malformedNamesAndApplicationsAreRejectedThroughJni() {
         for (String bad : new String[] {"a\0b", "a\uD800", "a\uDC00", "\uD800x"}) {
-            Class<? extends Throwable> error = bad.indexOf('\0') >= 0
-                ? IllegalArgumentException.class : java.nio.charset.CharacterCodingException.class;
-            assertThrows(error, () -> {
+            String message = bad.indexOf('\0') >= 0 ? "embedded NUL in name or application name"
+                : "unpaired surrogate in name or application name";
+            assertInvalidArgument(message, () -> {
                 try (Sender ignored = Sender.create(new SenderDesc(bad, APPLICATION, 3, false))) {}
             });
-            assertThrows(error, () -> {
+            assertInvalidArgument(message, () -> {
                 try (Sender ignored = Sender.create(new SenderDesc("valid", bad, 3, false))) {}
             });
-            assertThrows(error, () -> {
+            assertInvalidArgument(message, () -> {
                 try (Receiver ignored = Receiver.create(new ReceiverDesc(bad, APPLICATION, ReceiveMode.LATEST_ONLY))) {}
             });
-            assertThrows(error, () -> {
+            assertInvalidArgument(message, () -> {
                 try (Receiver ignored = Receiver.create(new ReceiverDesc("valid", bad, ReceiveMode.LATEST_ONLY))) {}
             });
         }
@@ -32,6 +38,22 @@ class Utf8NamesTest {
             try (Sender ignored = Sender.create(new SenderDesc("a".repeat(64), APPLICATION, 3, false))) {}
         });
         assertEquals(ErrorCode.INVALID_ARGUMENT, tooLong.errorCode());
+    }
+
+    @Test
+    void malformedNativeBytesUseTheRuntimeErrorContract() throws ReflectiveOperationException {
+        // Codec-level negative control; this does not simulate corrupted core IPC.
+        java.lang.reflect.Method decode = NozzleNative.class.getDeclaredMethod("decodeUtf8", byte[].class);
+        decode.setAccessible(true);
+        for (byte[] bad : new byte[][] {{(byte)0xff}, {(byte)0xed, (byte)0xa0, (byte)0x80}}) {
+            assertInvalidArgument("invalid UTF-8 returned by native code", () -> {
+                try {
+                    decode.invoke(null, (Object)bad);
+                } catch (java.lang.reflect.InvocationTargetException error) {
+                    throw error.getCause();
+                }
+            });
+        }
     }
 
     @Test
