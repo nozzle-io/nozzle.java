@@ -15,6 +15,46 @@ final class NozzleNative {
 
     private NozzleNative() {}
 
+    // JNI's UTF chars use modified UTF-8. Core names use strict standard UTF-8.
+    private static byte[] encodeUtf8(String text) {
+        if (text == null) text = "";
+        if (text.indexOf('\0') >= 0) {
+            throw new NozzleException(ErrorCode.INVALID_ARGUMENT, "embedded NUL in name or application name");
+        }
+        try {
+            java.nio.ByteBuffer bytes = java.nio.charset.StandardCharsets.UTF_8.newEncoder()
+                .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                .encode(java.nio.CharBuffer.wrap(text));
+            byte[] result = new byte[bytes.remaining()];
+            bytes.get(result);
+            return result;
+        } catch (java.nio.charset.CharacterCodingException error) {
+            throw new NozzleException(ErrorCode.INVALID_ARGUMENT, "unpaired surrogate in name or application name");
+        }
+    }
+
+    private static String decodeUtf8(byte[] bytes) {
+        try {
+            return java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                .decode(java.nio.ByteBuffer.wrap(bytes)).toString();
+        } catch (java.nio.charset.CharacterCodingException error) {
+            throw new NozzleException(ErrorCode.INVALID_ARGUMENT, "invalid UTF-8 returned by native code");
+        }
+    }
+
+    private static SenderInfo senderInfo(byte[] name, byte[] app, byte[] id, int backend) {
+        return new SenderInfo(decodeUtf8(name), decodeUtf8(app), decodeUtf8(id), BackendType.fromValue(backend));
+    }
+
+    private static ConnectedSenderInfo connectedInfo(byte[] name, byte[] app, byte[] id,
+            int backend, int width, int height, int format, double fps, long frame, long time) {
+        return new ConnectedSenderInfo(decodeUtf8(name), decodeUtf8(app), decodeUtf8(id),
+            BackendType.fromValue(backend), width, height, TextureFormat.fromValue(format), fps, frame, time);
+    }
+
     // --- sender ---
 
     static native long senderCreate(String name, String applicationName,
