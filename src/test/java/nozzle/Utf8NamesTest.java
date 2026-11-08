@@ -83,4 +83,109 @@ class Utf8NamesTest {
             assertEquals(ErrorCode.INVALID_ARGUMENT, tooLong.errorCode());
         }
     }
+
+    private static BackendType requiredMetadataBackend() {
+        String os = System.getProperty("os.name");
+        assumeFalse(os.startsWith("Linux"),
+            "SKIP: Linux default backend unavailable; native metadata lifecycle requires macOS/Windows");
+        assertTrue(os.startsWith("Mac") || os.startsWith("Windows"),
+            "Unsupported metadata test platform: " + os);
+        return os.startsWith("Windows") ? BackendType.D3D11 : BackendType.METAL;
+    }
+
+    private static String metadataName(String purpose) {
+        String name = "j193-" + purpose + "-" + ProcessHandle.current().pid() + "-"
+            + Long.toUnsignedString(System.nanoTime()) + "-\u65E5" + SUPPLEMENTARY;
+        assertTrue(name.getBytes(StandardCharsets.UTF_8).length <= 63);
+        return name;
+    }
+
+    private static void assertSameMetadata(ConnectedSenderInfo expected, ConnectedSenderInfo actual) {
+        assertEquals(expected.name(), actual.name());
+        assertEquals(expected.applicationName(), actual.applicationName());
+        assertEquals(expected.id(), actual.id());
+        assertEquals(expected.backend(), actual.backend());
+        assertEquals(expected.width(), actual.width());
+        assertEquals(expected.height(), actual.height());
+        assertEquals(expected.format(), actual.format());
+        assertEquals(expected.estimatedFps(), actual.estimatedFps());
+        assertEquals(expected.frameCounter(), actual.frameCounter());
+        assertEquals(expected.lastUpdateTimeNs(), actual.lastUpdateTimeNs());
+    }
+
+    @Test
+    void nativeSenderCloseRetainsIdentityButDisconnectsReceiver() {
+        BackendType backend = requiredMetadataBackend();
+        String name = metadataName("close");
+        try (Sender sender = Sender.create(new SenderDesc(name, APPLICATION, 3, false));
+             Receiver receiver = Receiver.create(new ReceiverDesc(name, APPLICATION, ReceiveMode.LATEST_ONLY))) {
+            SenderInfo own = sender.info();
+            ConnectedSenderInfo before = receiver.connectedInfo();
+            ConnectionSnapshot initialSnapshot = receiver.connectionSnapshot();
+            assertEquals(name, own.name());
+            assertEquals(APPLICATION, own.applicationName());
+            assertFalse(own.id().isEmpty());
+            assertEquals(backend, own.backend());
+            assertEquals(name, before.name());
+            assertEquals(APPLICATION, before.applicationName());
+            assertEquals(own.id(), before.id());
+            assertEquals(backend, before.backend());
+            assertTrue(receiver.isConnected());
+            assertTrue(initialSnapshot.connected());
+            assertSameMetadata(before, initialSnapshot.info());
+
+            // No outstanding frames or mappings retain the native sender.
+            sender.close();
+            NozzleException closed = assertThrowsExactly(NozzleException.class, () -> {
+                try (Frame unexpected = receiver.acquireFrame(0)) {}
+            });
+            assertEquals(ErrorCode.SENDER_CLOSED, closed.errorCode());
+            ConnectedSenderInfo after = receiver.connectedInfo();
+            assertEquals(before.name(), after.name());
+            assertEquals(before.applicationName(), after.applicationName());
+            assertEquals(before.id(), after.id());
+            assertEquals(before.backend(), after.backend());
+            boolean connected = receiver.isConnected();
+            System.out.println("METADATA_NATIVE acquire=" + closed.errorCode()
+                + " retainedId=" + after.id() + " backend=" + backend + " connected=" + connected);
+            assertFalse(connected, "After " + closed.errorCode()
+                + " with retained identity " + after.id() + ", isConnected must be false");
+            ConnectionSnapshot disconnected = receiver.connectionSnapshot();
+            assertFalse(disconnected.connected());
+            assertSameMetadata(after, disconnected.info());
+            assertTrue(initialSnapshot.connected());
+            assertSameMetadata(before, initialSnapshot.info());
+        }
+    }
+
+    @Test
+    void nativeUtf8MetadataRemainsOwnedAfterLaterGettersAndBothCloses() {
+        BackendType backend = requiredMetadataBackend();
+        String name = metadataName("owned");
+        SenderInfo own;
+        ConnectedSenderInfo retained;
+        ConnectionSnapshot snapshot;
+        try (Sender sender = Sender.create(new SenderDesc(name, APPLICATION, 3, false));
+             Receiver receiver = Receiver.create(new ReceiverDesc(name, APPLICATION, ReceiveMode.LATEST_ONLY))) {
+            own = sender.info();
+            retained = receiver.connectedInfo();
+            snapshot = receiver.connectionSnapshot();
+            assertEquals(own.id(), sender.info().id());
+            assertEquals(retained.id(), receiver.connectedInfo().id());
+        }
+
+        // Only owned Java values are read after both native handles close.
+        assertEquals(name, own.name());
+        assertEquals(APPLICATION, own.applicationName());
+        assertFalse(own.id().isEmpty());
+        assertEquals(backend, own.backend());
+        assertEquals(name, retained.name());
+        assertEquals(APPLICATION, retained.applicationName());
+        assertEquals(own.id(), retained.id());
+        assertEquals(backend, retained.backend());
+        assertTrue(snapshot.connected());
+        assertSameMetadata(retained, snapshot.info());
+        System.out.println("METADATA_NATIVE ownedUTF8AfterClose id=" + retained.id()
+            + " backend=" + backend);
+    }
 }

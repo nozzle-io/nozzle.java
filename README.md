@@ -76,6 +76,36 @@ SenderInfo[] senders = Nozzle.enumerateSenders();
 System.out.printf("found %d senders%n", senders.length);
 ```
 
+### Owned Metadata Snapshots
+
+`Sender.info()` and `Receiver.connectedInfo()` now copy complete native snapshots
+through JNI into owned Java strings and values. Inline UTF-8 copies stop at NUL
+or the actual native array capacity and use the existing strict charset decoder.
+The existing `ConnectedSenderInfo` constructor, fields, and getter signatures are
+unchanged; Discovery keeps its `NozzleSenderInfo` enumeration/free path.
+
+`Receiver.connectionSnapshot()` returns a `ConnectionSnapshot` with `connected()`
+and `info()` populated from one native call. `connectedInfo()` projects that
+metadata, including last-known identity after an observed disconnect.
+`isConnected()` reads the same snapshot flag, returning false on `NozzleException`
+as before; successful metadata retrieval alone does not mean connected.
+
+This is last-observed state, not a fresh liveness check or a reconnect operation.
+Returned values survive later getters and closing either handle. No general
+thread-safety or concurrent-close guarantee is added. Native errors and strict
+UTF-8 diagnostics retain their existing exception contract. The JNI library
+requires the sender/receiver snapshot exports supplied by the pinned core; it
+does not fall back to borrowed getters.
+
+The required `Utf8NamesTest` CI lane exercises real same-process metadata on
+macOS (Metal) and Windows (D3D11), including exact `SENDER_CLOSED` acquisition,
+retained identity with a false connection flag, and owned UTF-8 values after
+both handles close. Linux explicitly excludes these default-backend lifecycle
+cases while retaining codec/input controls. No frames are published by these
+metadata tests: they do not establish pixel correctness, cross-process behavior,
+concurrent close safety, or nonzero stream-statistic conversion coverage.
+Gradle may capture phase stdout in its test reports rather than console output.
+
 ### GPU Check
 
 ```java
