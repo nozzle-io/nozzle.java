@@ -55,6 +55,13 @@ final class NozzleNative {
             BackendType.fromValue(backend), width, height, TextureFormat.fromValue(format), fps, frame, time);
     }
 
+    private static ConnectionSnapshot connectionSnapshot(boolean connected,
+            byte[] name, byte[] app, byte[] id, int backend, int width, int height,
+            int format, double fps, long frame, long time) {
+        return new ConnectionSnapshot(connected,
+            connectedInfo(name, app, id, backend, width, height, format, fps, frame, time));
+    }
+
     // --- sender ---
 
     static native long senderCreate(String name, String applicationName,
@@ -85,7 +92,7 @@ final class NozzleNative {
 
     static native long receiverAcquireFrame(long receiverPtr, long timeoutMs);
 
-    static native ConnectedSenderInfo receiverGetConnectedInfo(long receiverPtr);
+    static native ConnectionSnapshot receiverGetConnectionSnapshot(long receiverPtr);
 
     // --- frame ---
 

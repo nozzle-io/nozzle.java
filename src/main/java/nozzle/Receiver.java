@@ -31,13 +31,17 @@ public class Receiver implements AutoCloseable {
     }
 
     public ConnectedSenderInfo connectedInfo() {
-        return NozzleNative.receiverGetConnectedInfo(ptr);
+        return connectionSnapshot().info();
+    }
+
+    /** Copies state and metadata together, retaining identity after an observed disconnect. */
+    public ConnectionSnapshot connectionSnapshot() {
+        return NozzleNative.receiverGetConnectionSnapshot(ptr);
     }
 
     public boolean isConnected() {
         try {
-            connectedInfo();
-            return true;
+            return connectionSnapshot().connected();
         } catch (NozzleException e) {
             return false;
         }
